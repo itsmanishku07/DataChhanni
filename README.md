@@ -1,36 +1,121 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# CSV Data Manager
 
-## Getting Started
+A Next.js application for managing CSV data with MongoDB.
 
-First, run the development server:
+## Features
 
+- 📤 Upload CSV files and store them as MongoDB collections
+- 📊 View collection data in table or graph format
+  - Interactive bar charts
+  - Line charts for trends
+  - Pie charts for distribution
+- 🔍 Filter data using MongoDB query expressions
+- 💾 Save filtered results as new collections
+- ⚙️ Manage collection fields
+  - Add new fields to all documents
+  - Delete fields from all documents
+  - View all existing fields
+- ✏️ Update field data
+  - Update single or multiple fields at once
+  - Filter documents to update specific records
+  - Bulk update all documents or targeted subset
+- 🗂️ Manage collections
+  - View all collections
+  - Delete entire collections
+- 🎨 Modern, responsive UI with dark theme
+
+## Prerequisites
+
+- Node.js installed
+- MongoDB instance (local or cloud)
+- MongoDB connection URI ready
+
+## Setup
+
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Run the development server:
+```bash
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+3. Open [http://localhost:3000](http://localhost:3000)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. **IMPORTANT:** Configure MongoDB connection in Settings (⚙️) before using the app
 
-## Learn More
+## Usage
 
-To learn more about Next.js, take a look at the following resources:
+### Configure MongoDB Connection (Required - First Time Setup)
+1. Click the settings icon (⚙️) in the top right corner
+2. Enter your MongoDB connection URI
+   - Local: `mongodb://localhost:27017`
+   - Atlas: `mongodb+srv://username:password@cluster.mongodb.net`
+   - Docker: `mongodb://host.docker.internal:27017`
+3. Enter your database name (e.g., csvdatamanager, mydb, etc.)
+4. Click "🔌 Test Connection" to verify your connection (recommended)
+   - Shows success message with collection count if valid
+   - Shows specific error message if connection fails
+5. Click "💾 Save Settings" - automatically tests connection before saving
+   - Settings are stored in browser localStorage
+   - The app will refresh and connect to your MongoDB instance
+6. Click "🗑️ Remove Settings" to clear configuration and enter new credentials
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Upload CSV
+1. Enter a collection name in the input field
+2. Click "Choose File" and select a CSV file
+3. Data will be uploaded to MongoDB
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### View Data
+1. Select a collection from the dropdown
+2. Click "Load Data"
+3. Toggle between Table and Graph views
+   - Table: Scrollable data grid
+   - Graph: Bar, Line, and Pie charts
 
-## Deploy on Vercel
+### Filter Data
+1. Select a collection from the dropdown
+2. Enter a MongoDB filter expression (JSON format)
+   - Example: `{"age": {"$gt": 25}}`
+   - Leave empty to get all records
+3. Click "Apply Filter"
+4. Save filtered results as a new collection
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Manage Fields
+1. Select a collection and click "Load Fields"
+2. View all existing fields in the collection
+3. Add new field:
+   - Enter field name
+   - Optionally set a default value
+   - Click "Add Field"
+4. Delete field:
+   - Select field from dropdown
+   - Click "Delete Field" (confirms before deletion)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Update Field Data
+1. Select a collection and click "Load Fields"
+2. Optionally add a filter to target specific documents
+   - Example: `{"status": "pending"}` to update only pending records
+   - Leave empty to update all documents
+3. Add field-value pairs:
+   - Select field from dropdown
+   - Enter new value
+   - Click "+ Add Field" to update multiple fields at once
+4. Click "Update Fields" to apply changes
+5. View how many documents were matched and modified
+
+### Manage Collections
+1. View all available collections
+2. Delete a collection:
+   - Select collection from dropdown
+   - Click "Delete Collection Permanently"
+   - Confirm the deletion (cannot be undone)
+
+## MongoDB Filter Examples
+
+- Greater than: `{"age": {"$gt": 25}}`
+- Equal to: `{"name": "John"}`
+- Multiple conditions: `{"age": {"$gt": 20}, "city": "New York"}`
+- In array: `{"status": {"$in": ["active", "pending"]}}`
