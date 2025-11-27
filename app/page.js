@@ -42,6 +42,17 @@ export default function Home() {
   const [updateFields, setUpdateFields] = useState([]);
   const [updateFilter, setUpdateFilter] = useState('');
   const [fieldUpdates, setFieldUpdates] = useState([{ field: '', value: '' }]);
+  
+  // AI Insights state
+  const [insightsCollection, setInsightsCollection] = useState('');
+  const [insights, setInsights] = useState(null);
+  const [loadingInsights, setLoadingInsights] = useState(false);
+  
+  // Duplicate Detection state
+  const [dupCollection, setDupCollection] = useState('');
+  const [dupFields, setDupFields] = useState([]);
+  const [dupSelectedFields, setDupSelectedFields] = useState([]);
+  const [duplicates, setDuplicates] = useState(null);
 
   useEffect(() => {
     // Load MongoDB settings from localStorage
@@ -593,101 +604,241 @@ export default function Home() {
     }
   };
 
+  // AI Insights handlers
+  const handleGetInsights = async () => {
+    if (!insightsCollection) {
+      alert('Please select a collection');
+      return;
+    }
+
+    setLoadingInsights(true);
+    try {
+      const res = await fetch('/api/ai-insights', {
+        method: 'POST',
+        headers: getMongoHeaders(),
+        body: JSON.stringify({ collectionName: insightsCollection })
+      });
+
+      const data = await res.json();
+      setInsights(data);
+    } catch (error) {
+      alert('Error getting insights: ' + error.message);
+    } finally {
+      setLoadingInsights(false);
+    }
+  };
+
+  // Duplicate Detection handlers
+  const handleLoadDupFields = async () => {
+    if (!dupCollection) return;
+    
+    try {
+      const res = await fetch('/api/fields', {
+        method: 'POST',
+        headers: getMongoHeaders(),
+        body: JSON.stringify({ collectionName: dupCollection })
+      });
+
+      const data = await res.json();
+      setDupFields(data.fields || []);
+    } catch (error) {
+      alert('Error loading fields: ' + error.message);
+    }
+  };
+
+  const handleFindDuplicates = async () => {
+    if (!dupCollection || dupSelectedFields.length === 0) {
+      alert('Please select a collection and at least one field');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/duplicate-detection', {
+        method: 'POST',
+        headers: getMongoHeaders(),
+        body: JSON.stringify({ 
+          collectionName: dupCollection,
+          fields: dupSelectedFields
+        })
+      });
+
+      const data = await res.json();
+      setDuplicates(data);
+    } catch (error) {
+      alert('Error finding duplicates: ' + error.message);
+    }
+  };
+
+  const toggleDupField = (field) => {
+    if (dupSelectedFields.includes(field)) {
+      setDupSelectedFields(dupSelectedFields.filter(f => f !== field));
+    } else {
+      setDupSelectedFields([...dupSelectedFields, field]);
+    }
+  };
+
+  // Export handler
+  const handleExport = async (format) => {
+    if (!viewCollection) {
+      alert('Please load a collection first in the View tab');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/export', {
+        method: 'POST',
+        headers: getMongoHeaders(),
+        body: JSON.stringify({ 
+          collectionName: viewCollection,
+          format,
+          filter: {}
+        })
+      });
+
+      if (format === 'csv') {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${viewCollection}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        alert('✓ CSV exported successfully!');
+      } else {
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${viewCollection}.json`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        alert('✓ JSON exported successfully!');
+      }
+    } catch (error) {
+      alert('Error exporting: ' + error.message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-7xl">
         {/* Settings Button */}
-        <div className="absolute top-4 right-4">
+        <div className="fixed top-3 right-3 sm:top-4 sm:right-4 z-50">
           <button 
             onClick={() => setShowSettings(true)}
-            className="p-3 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 hover:bg-white/20 transition-all"
+            className="p-2 sm:p-3 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 hover:bg-white/20 transition-all shadow-lg"
             title="Settings"
           >
-            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </button>
         </div>
 
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-white mb-3 tracking-tight">
+        <div className="text-center mb-6 sm:mb-12 pt-12 sm:pt-0">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-2 sm:mb-3 tracking-tight px-2">
             Data Chhani
           </h1>
-          <p className="text-purple-200 text-lg">
+          <p className="text-purple-200 text-sm sm:text-base md:text-lg px-4">
             Upload, View, Filter & Manage Your Data Collections
           </p>
         </div>
 
         {!mongoUri || !mongoDb ? (
-          <div className="mb-8 text-center">
-            <div className="inline-flex items-center gap-2 bg-yellow-500/20 backdrop-blur-sm px-6 py-3 rounded-full border border-yellow-500/30">
-              <span className="text-yellow-300 text-2xl">⚠️</span>
-              <span className="text-yellow-200 font-medium">
+          <div className="mb-4 sm:mb-8 text-center px-2">
+            <div className="inline-flex items-center gap-2 bg-yellow-500/20 backdrop-blur-sm px-3 sm:px-6 py-2 sm:py-3 rounded-full border border-yellow-500/30">
+              <span className="text-yellow-300 text-lg sm:text-2xl">⚠️</span>
+              <span className="text-yellow-200 font-medium text-xs sm:text-sm md:text-base">
                 MongoDB not configured. Click Settings (⚙️) to get started!
               </span>
             </div>
           </div>
         ) : collections.length > 0 ? (
-          <div className="mb-8 text-center">
-            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-6 py-3 rounded-full border border-white/20">
+          <div className="mb-4 sm:mb-8 text-center">
+            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 sm:px-6 py-2 sm:py-3 rounded-full border border-white/20">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-white font-medium">
+              <span className="text-white font-medium text-xs sm:text-sm md:text-base">
                 {collections.length} Collection{collections.length !== 1 ? 's' : ''} Available
               </span>
             </div>
           </div>
         ) : null}
 
-        <div className="flex justify-center mb-8 overflow-x-auto">
-          <div className="inline-flex bg-white/10 backdrop-blur-sm p-1 rounded-xl border border-white/20">
+        <div className="flex justify-center mb-4 sm:mb-8 overflow-x-auto pb-2 scrollbar-hide">
+          <div className="inline-flex bg-white/10 backdrop-blur-sm p-1 rounded-xl border border-white/20 min-w-max">
             <button
               onClick={() => setActiveTab('upload')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${
+              className={`px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all whitespace-nowrap text-xs sm:text-sm md:text-base ${
                 activeTab === 'upload' ? 'bg-white text-purple-900 shadow-lg' : 'text-white hover:bg-white/10'
               }`}
             >
-              📤 Upload
+              <span className="hidden sm:inline">📤 Upload</span>
+              <span className="sm:hidden">📤</span>
             </button>
             <button
               onClick={() => setActiveTab('view')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${
+              className={`px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all whitespace-nowrap text-xs sm:text-sm md:text-base ${
                 activeTab === 'view' ? 'bg-white text-purple-900 shadow-lg' : 'text-white hover:bg-white/10'
               }`}
             >
-              📊 View
+              <span className="hidden sm:inline">📊 View</span>
+              <span className="sm:hidden">📊</span>
             </button>
             <button
               onClick={() => setActiveTab('filter')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${
+              className={`px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all whitespace-nowrap text-xs sm:text-sm md:text-base ${
                 activeTab === 'filter' ? 'bg-white text-purple-900 shadow-lg' : 'text-white hover:bg-white/10'
               }`}
             >
-              🔍 Filter
+              <span className="hidden sm:inline">🔍 Filter</span>
+              <span className="sm:hidden">🔍</span>
             </button>
             <button
               onClick={() => setActiveTab('fields')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${
+              className={`px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all whitespace-nowrap text-xs sm:text-sm md:text-base ${
                 activeTab === 'fields' ? 'bg-white text-purple-900 shadow-lg' : 'text-white hover:bg-white/10'
               }`}
             >
-              ⚙️ Fields
+              <span className="hidden sm:inline">⚙️ Fields</span>
+              <span className="sm:hidden">⚙️</span>
             </button>
             <button
               onClick={() => setActiveTab('update')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${
+              className={`px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all whitespace-nowrap text-xs sm:text-sm md:text-base ${
                 activeTab === 'update' ? 'bg-white text-purple-900 shadow-lg' : 'text-white hover:bg-white/10'
               }`}
             >
-              ✏️ Update
+              <span className="hidden sm:inline">✏️ Update</span>
+              <span className="sm:hidden">✏️</span>
             </button>
             <button
               onClick={() => setActiveTab('manage')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${
+              className={`px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all whitespace-nowrap text-xs sm:text-sm md:text-base ${
                 activeTab === 'manage' ? 'bg-white text-purple-900 shadow-lg' : 'text-white hover:bg-white/10'
               }`}
             >
-              🗂️ Manage
+              <span className="hidden sm:inline">🗂️ Manage</span>
+              <span className="sm:hidden">🗂️</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('insights')}
+              className={`px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all whitespace-nowrap text-xs sm:text-sm md:text-base ${
+                activeTab === 'insights' ? 'bg-white text-purple-900 shadow-lg' : 'text-white hover:bg-white/10'
+              }`}
+            >
+              <span className="hidden sm:inline">🧠 Insights</span>
+              <span className="sm:hidden">🧠</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('duplicates')}
+              className={`px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all whitespace-nowrap text-xs sm:text-sm md:text-base ${
+                activeTab === 'duplicates' ? 'bg-white text-purple-900 shadow-lg' : 'text-white hover:bg-white/10'
+              }`}
+            >
+              <span className="hidden sm:inline">🔍 Duplicates</span>
+              <span className="sm:hidden">🔍</span>
             </button>
           </div>
         </div>
@@ -695,64 +846,78 @@ export default function Home() {
         <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-2xl overflow-hidden">
           
           {activeTab === 'upload' && (
-            <div className="p-8">
-              <h2 className="text-2xl font-bold text-white mb-6">Upload CSV File</h2>
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-purple-200 mb-2">Collection Name</label>
+            <div className="p-4 sm:p-6 md:p-8">
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Upload CSV File</h2>
+              <div className="mb-4 sm:mb-6">
+                <label className="block text-xs sm:text-sm font-medium text-purple-200 mb-2">Collection Name</label>
                 <input
                   type="text"
                   placeholder="Enter collection name"
                   value={uploadCollectionName}
                   onChange={(e) => setUploadCollectionName(e.target.value)}
-                  className="w-full p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                  className="w-full p-3 sm:p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm sm:text-base"
                 />
               </div>
-              <div className="border-2 border-dashed border-white/30 rounded-xl p-12 text-center hover:border-purple-400 transition-colors bg-white/5">
+              <div className="border-2 border-dashed border-white/30 rounded-xl p-6 sm:p-12 text-center hover:border-purple-400 transition-colors bg-white/5">
                 <div className="mb-4">
-                  <svg className="mx-auto h-16 w-16 text-purple-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="mx-auto h-12 w-12 sm:h-16 sm:w-16 text-purple-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
                 </div>
                 <label className="cursor-pointer">
-                  <span className="mt-2 block text-lg font-medium text-white mb-2">Drop your CSV file here or click to browse</span>
+                  <span className="mt-2 block text-sm sm:text-lg font-medium text-white mb-2">Drop your CSV file here or click to browse</span>
                   <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
-                  <span className="inline-block mt-4 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium">Choose File</span>
+                  <span className="inline-block mt-4 px-4 sm:px-6 py-2 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium text-sm sm:text-base">Choose File</span>
                 </label>
               </div>
             </div>
           )}
 
           {activeTab === 'view' && (
-            <div className="p-8">
-              <h2 className="text-2xl font-bold text-white mb-6">View Collection Data</h2>
-              <div className="space-y-6">
-                <div className="flex gap-4">
-                  <select value={viewCollection} onChange={(e) => setViewCollection(e.target.value)} className="flex-1 p-4 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none">
+            <div className="p-4 sm:p-6 md:p-8">
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">View Collection Data</h2>
+              <div className="space-y-4 sm:space-y-6">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                  <select value={viewCollection} onChange={(e) => setViewCollection(e.target.value)} className="flex-1 p-3 sm:p-4 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm sm:text-base">
                     <option value="" className="bg-slate-800">Select a collection...</option>
                     {collections.map(col => (<option key={col} value={col} className="bg-slate-800">{col}</option>))}
                   </select>
-                  <button onClick={handleViewCollection} className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-4 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all font-medium shadow-lg">Load Data</button>
+                  <button onClick={handleViewCollection} className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all font-medium shadow-lg text-sm sm:text-base whitespace-nowrap">Load Data</button>
                 </div>
                 {viewData.length > 0 && (
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between bg-green-500/20 border border-green-500/30 rounded-xl p-4">
-                      <span className="text-green-300 font-medium">✓ Loaded {viewData.length} record{viewData.length !== 1 ? 's' : ''}</span>
-                      <div className="flex gap-2">
-                        <button onClick={() => setViewMode('table')} className={`px-4 py-2 rounded-lg font-medium transition-all ${viewMode === 'table' ? 'bg-purple-600 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}>📋 Table</button>
-                        <button onClick={() => setViewMode('graph')} className={`px-4 py-2 rounded-lg font-medium transition-all ${viewMode === 'graph' ? 'bg-purple-600 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}>📈 Graph</button>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-green-500/20 border border-green-500/30 rounded-xl p-3 sm:p-4 gap-3">
+                      <span className="text-green-300 font-medium text-sm sm:text-base">✓ Loaded {viewData.length} record{viewData.length !== 1 ? 's' : ''}</span>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => setViewMode('table')} className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-all text-xs sm:text-sm ${viewMode === 'table' ? 'bg-purple-600 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+                          <span className="hidden sm:inline">📋 Table</span>
+                          <span className="sm:hidden">📋</span>
+                        </button>
+                        <button onClick={() => setViewMode('graph')} className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-all text-xs sm:text-sm ${viewMode === 'graph' ? 'bg-purple-600 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+                          <span className="hidden sm:inline">📈 Graph</span>
+                          <span className="sm:hidden">📈</span>
+                        </button>
+                        <button onClick={() => handleExport('csv')} className="px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all font-medium text-xs sm:text-sm">
+                          <span className="hidden sm:inline">📥 CSV</span>
+                          <span className="sm:hidden">📥</span>
+                        </button>
+                        <button onClick={() => handleExport('json')} className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium text-xs sm:text-sm">
+                          <span className="hidden sm:inline">📥 JSON</span>
+                          <span className="sm:hidden">📥</span>
+                        </button>
                       </div>
                     </div>
                     {viewMode === 'table' ? (
                       <div className="bg-slate-900/50 border border-white/10 rounded-xl overflow-hidden">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
+                        <div className="overflow-x-auto max-h-[60vh] sm:max-h-[70vh]">
+                          <table className="w-full text-xs sm:text-sm">
                             <thead className="bg-purple-900/50 sticky top-0">
-                              <tr>{viewColumns.map((col, idx) => (<th key={idx} className="px-4 py-3 text-left text-purple-200 font-semibold border-b border-white/10">{col}</th>))}</tr>
+                              <tr>{viewColumns.map((col, idx) => (<th key={idx} className="px-2 sm:px-4 py-2 sm:py-3 text-left text-purple-200 font-semibold border-b border-white/10 whitespace-nowrap">{col}</th>))}</tr>
                             </thead>
                             <tbody>
                               {viewData.map((row, rowIdx) => (
                                 <tr key={rowIdx} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                                  {viewColumns.map((col, colIdx) => (<td key={colIdx} className="px-4 py-3 text-purple-100">{typeof row[col] === 'object' ? JSON.stringify(row[col]) : String(row[col] ?? '')}</td>))}
+                                  {viewColumns.map((col, colIdx) => (<td key={colIdx} className="px-2 sm:px-4 py-2 sm:py-3 text-purple-100">{typeof row[col] === 'object' ? JSON.stringify(row[col]) : String(row[col] ?? '')}</td>))}
                                 </tr>
                               ))}
                             </tbody>
@@ -1060,34 +1225,231 @@ export default function Home() {
               </div>
             </div>
           )}
+
+          {activeTab === 'insights' && (
+            <div className="p-8">
+              <h2 className="text-2xl font-bold text-white mb-6">AI Insights</h2>
+              <div className="space-y-6">
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
+                  <p className="text-purple-200 text-sm">
+                    🧠 Get AI-powered insights about your data including statistics, patterns, and recommendations
+                  </p>
+                </div>
+
+                <div className="flex gap-4">
+                  <select 
+                    value={insightsCollection} 
+                    onChange={(e) => setInsightsCollection(e.target.value)} 
+                    className="flex-1 p-4 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                  >
+                    <option value="" className="bg-slate-800">Select a collection...</option>
+                    {collections.map(col => (
+                      <option key={col} value={col} className="bg-slate-800">{col}</option>
+                    ))}
+                  </select>
+                  <button 
+                    onClick={handleGetInsights} 
+                    disabled={loadingInsights}
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-4 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all font-medium shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingInsights ? '⏳ Analyzing...' : '🔍 Get Insights'}
+                  </button>
+                </div>
+
+                {insights && (
+                  <div className="space-y-4">
+                    <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-4">
+                      <p className="text-green-300 font-medium">✓ Analysis Complete</p>
+                    </div>
+
+                    <div className="bg-white/5 p-6 rounded-xl border border-white/10">
+                      <h3 className="text-xl font-semibold text-white mb-4">📊 Statistics</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-blue-500/20 p-4 rounded-lg">
+                          <p className="text-blue-300 text-sm mb-1">Total Records</p>
+                          <p className="text-white text-2xl font-bold">{insights.totalRecords}</p>
+                        </div>
+                        <div className="bg-purple-500/20 p-4 rounded-lg">
+                          <p className="text-purple-300 text-sm mb-1">Total Fields</p>
+                          <p className="text-white text-2xl font-bold">{insights.totalFields}</p>
+                        </div>
+                        <div className="bg-green-500/20 p-4 rounded-lg">
+                          <p className="text-green-300 text-sm mb-1">Numeric Fields</p>
+                          <p className="text-white text-2xl font-bold">{insights.numericFields}</p>
+                        </div>
+                        <div className="bg-orange-500/20 p-4 rounded-lg">
+                          <p className="text-orange-300 text-sm mb-1">Text Fields</p>
+                          <p className="text-white text-2xl font-bold">{insights.textFields}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {insights.fieldStats && Object.keys(insights.fieldStats).length > 0 && (
+                      <div className="bg-white/5 p-6 rounded-xl border border-white/10">
+                        <h3 className="text-xl font-semibold text-white mb-4">📈 Field Analysis</h3>
+                        <div className="space-y-3">
+                          {Object.entries(insights.fieldStats).map(([field, stats]) => (
+                            <div key={field} className="bg-slate-800/50 p-4 rounded-lg">
+                              <p className="text-purple-300 font-medium mb-2">{field}</p>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                                {stats.unique && <p className="text-gray-300">Unique: {stats.unique}</p>}
+                                {stats.min !== undefined && <p className="text-gray-300">Min: {stats.min}</p>}
+                                {stats.max !== undefined && <p className="text-gray-300">Max: {stats.max}</p>}
+                                {stats.avg !== undefined && <p className="text-gray-300">Avg: {stats.avg.toFixed(2)}</p>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {insights.recommendations && insights.recommendations.length > 0 && (
+                      <div className="bg-white/5 p-6 rounded-xl border border-white/10">
+                        <h3 className="text-xl font-semibold text-white mb-4">💡 Recommendations</h3>
+                        <ul className="space-y-2">
+                          {insights.recommendations.map((rec, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-purple-200">
+                              <span className="text-yellow-400 mt-1">•</span>
+                              <span>{rec}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'duplicates' && (
+            <div className="p-8">
+              <h2 className="text-2xl font-bold text-white mb-6">Duplicate Detection</h2>
+              <div className="space-y-6">
+                <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4">
+                  <p className="text-orange-200 text-sm">
+                    🔍 Find duplicate records based on one or more fields
+                  </p>
+                </div>
+
+                <div className="flex gap-4">
+                  <select 
+                    value={dupCollection} 
+                    onChange={(e) => {
+                      setDupCollection(e.target.value);
+                      setDupSelectedFields([]);
+                      setDuplicates(null);
+                    }} 
+                    className="flex-1 p-4 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                  >
+                    <option value="" className="bg-slate-800">Select a collection...</option>
+                    {collections.map(col => (
+                      <option key={col} value={col} className="bg-slate-800">{col}</option>
+                    ))}
+                  </select>
+                  <button 
+                    onClick={handleLoadDupFields} 
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-4 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all font-medium shadow-lg"
+                  >
+                    Load Fields
+                  </button>
+                </div>
+
+                {dupFields.length > 0 && (
+                  <div className="bg-white/5 p-6 rounded-xl border border-white/10">
+                    <h3 className="text-lg font-semibold text-white mb-4">Select Fields to Check for Duplicates</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {dupFields.map(field => (
+                        <button
+                          key={field}
+                          onClick={() => toggleDupField(field)}
+                          className={`p-3 rounded-lg font-medium transition-all ${
+                            dupSelectedFields.includes(field)
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-white/10 text-purple-200 hover:bg-white/20'
+                          }`}
+                        >
+                          {dupSelectedFields.includes(field) && '✓ '}
+                          {field}
+                        </button>
+                      ))}
+                    </div>
+                    <button 
+                      onClick={handleFindDuplicates}
+                      disabled={dupSelectedFields.length === 0}
+                      className="w-full mt-4 bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-4 rounded-xl hover:from-orange-700 hover:to-red-700 transition-all font-medium shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      🔍 Find Duplicates
+                    </button>
+                  </div>
+                )}
+
+                {duplicates && (
+                  <div className="space-y-4">
+                    <div className={`${duplicates.duplicateGroups.length > 0 ? 'bg-orange-500/20 border-orange-500/30' : 'bg-green-500/20 border-green-500/30'} border rounded-xl p-4`}>
+                      <p className={`${duplicates.duplicateGroups.length > 0 ? 'text-orange-300' : 'text-green-300'} font-medium`}>
+                        {duplicates.duplicateGroups.length > 0 
+                          ? `⚠️ Found ${duplicates.totalDuplicates} duplicate record(s) in ${duplicates.duplicateGroups.length} group(s)`
+                          : '✓ No duplicates found!'
+                        }
+                      </p>
+                    </div>
+
+                    {duplicates.duplicateGroups.length > 0 && (
+                      <div className="bg-white/5 p-6 rounded-xl border border-white/10">
+                        <h3 className="text-xl font-semibold text-white mb-4">Duplicate Groups</h3>
+                        <div className="space-y-4">
+                          {duplicates.duplicateGroups.map((group, idx) => (
+                            <div key={idx} className="bg-slate-800/50 p-4 rounded-lg">
+                              <div className="flex items-center justify-between mb-3">
+                                <p className="text-purple-300 font-medium">Group {idx + 1}</p>
+                                <span className="px-3 py-1 bg-orange-600/30 text-orange-200 rounded-full text-sm">
+                                  {group.count} duplicates
+                                </span>
+                              </div>
+                              <div className="bg-slate-900/50 p-3 rounded">
+                                <p className="text-gray-300 text-sm font-mono">
+                                  {JSON.stringify(group.value, null, 2)}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Settings Modal */}
       {showSettings && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-white/20 rounded-2xl p-8 max-w-2xl w-full shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-3xl font-bold text-white">⚙️ Settings</h2>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-slate-900 border border-white/20 rounded-2xl p-4 sm:p-6 md:p-8 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">⚙️ Settings</h2>
               <button 
                 onClick={() => setShowSettings(false)}
                 className="p-2 hover:bg-white/10 rounded-lg transition-colors"
               >
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            <div className="space-y-6">
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
-                <p className="text-blue-200 text-sm">
+            <div className="space-y-4 sm:space-y-6">
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 sm:p-4">
+                <p className="text-blue-200 text-xs sm:text-sm">
                   💡 Configure your MongoDB connection. Leave empty to use default (localhost:27017)
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-purple-200 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-purple-200 mb-2">
                   MongoDB Connection URI
                 </label>
                 <input
@@ -1095,7 +1457,7 @@ export default function Home() {
                   placeholder=""
                   value={mongoUri}
                   onChange={(e) => setMongoUri(e.target.value)}
-                  className="w-full p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                  className="w-full p-3 sm:p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm sm:text-base"
                 />
                 <p className="text-purple-300/70 text-xs mt-2">
                   Example: mongodb://localhost:27017 or mongodb+srv://user:pass@cluster.mongodb.net
@@ -1103,15 +1465,15 @@ export default function Home() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-purple-200 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-purple-200 mb-2">
                   Database Name
                 </label>
                 <input
                   type="text"
-                  placeholder="csvdatamanager"
+                  placeholder=""
                   value={mongoDb}
                   onChange={(e) => setMongoDb(e.target.value)}
-                  className="w-full p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                  className="w-full p-3 sm:p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm sm:text-base"
                 />
                 <p className="text-purple-300/70 text-xs mt-2">
                   The database name to use for storing collections
